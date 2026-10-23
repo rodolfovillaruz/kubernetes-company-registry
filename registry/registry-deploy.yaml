@@ -21,6 +21,10 @@ spec:
       - env:
         - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
           value: /var/lib/registry
+        # TLS is terminated by the proxy, so the registry only sees plain HTTP;
+        # without this, upload Location headers point at http:// and get 301'd.
+        - name: REGISTRY_HTTP_HOST
+          value: https://yes.ph
         image: registry:2
         imagePullPolicy: IfNotPresent
         livenessProbe:
