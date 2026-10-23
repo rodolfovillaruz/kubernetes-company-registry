@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: registry
+  name: registry
+  namespace: registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      containers:
+      - env:
+        - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+          value: /var/lib/registry
+        image: registry:2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /v2/
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        name: registry
+        ports:
+        - containerPort: 5000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /v2/
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - mountPath: /var/lib/registry
+          name: registry-data
+      volumes:
+      - name: registry-data
+        persistentVolumeClaim:
+          claimName: registry-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  type: ClusterIP
+  selector:
+    app: registry
+  ports:
+  - port: 5000
+    targetPort: 5000

@@ -1,0 +1,74 @@
+# nginx terminates TLS on port 443 using the chained yes.ph cert, then
+# forwards plaintext to the registry's ClusterIP inside the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proxy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-nginx-conf
+  namespace: proxy
+data:
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 80;
+        return 301 https://$host$request_uri;
+      }
+    }
+    stream {
+      server {
+        listen 443 ssl;
+        ssl_certificate /certs/tls.crt;
+        ssl_certificate_key /certs/tls.key;
+        proxy_pass registry.registry.svc.cluster.local:5000;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy
+  namespace: proxy
+  labels:
+    app: proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxy
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: proxy
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 443
+          hostPort: 443
+        - containerPort: 80
+          hostPort: 80
+        volumeMounts:
+        - mountPath: /etc/nginx/nginx.conf
+          name: nginx-conf
+          subPath: nginx.conf
+          readOnly: true
+        - mountPath: /certs
+          name: proxy-tls
+          readOnly: true
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: proxy-nginx-conf
+      - name: proxy-tls
+        secret:
+          secretName: proxy-tls
